@@ -23,7 +23,7 @@
 python av_to_transcript_and_minutes.py <视频/音频文件或文件夹> [-o 输出目录] [--meeting] [--srt] …
 ```
 
-> 当前版本：**v2.1** ｜ License: [MIT](LICENSE) ｜ 环境：Windows / Linux / macOS，需 FFmpeg 与 Python 3.10+
+> 当前版本：**v2.2** ｜ License: [MIT](LICENSE) ｜ 环境：Windows / Linux / macOS，需 FFmpeg 与 Python 3.10+
 
 ---
 
@@ -35,7 +35,7 @@ python av_to_transcript_and_minutes.py <视频/音频文件或文件夹> [-o 输
 - **说话人分离双引擎**：
   - `pyannote`（community-1，会议场景默认）——分割模型原生处理**重叠语音**，实测真实 28 分钟会议从 35 个假说话人收敛到 2 个
   - `campp`（VAD + cam++ 声纹聚类）——轻量，单人/访谈素材够用
-- **字幕与纠错**：`--srt` 出字级时间戳字幕；`--replace` 确定性专名纠错（比 `--hotwords` 偏置可靠）；`--names` 说话人真名映射；`--asr-extra` 透传其余引擎参数
+- **字幕与纠错**：`--srt` 出字级时间戳字幕；`--replace` 确定性专名纠错（比 `--hotwords` 偏置可靠）；`--replace-file` / `--replace-save` 纠错词典读取与回写（本次纠错条目自动并入词典，下次自动带上）；`--names` 说话人真名映射；`--asr-extra` 透传其余引擎参数
 - **断点续跑**：转写（最贵环节）结果按参数指纹缓存——阈值 / 热词 / 人名 / 字幕 / **识别引擎** / 额外 ASR 参数任一不同即互不复用，**切换识别引擎不会误用旧结果**
 - **完成判定与补排版**：md 与 docx 齐备才算完成；首次运行缺 `article-format` 时只出 md，补装后重跑自动只补 docx，无需 `--force` 全量重跑
 - **批量容错与可观测**：单个文件失败只计一次失败并继续（素材损坏、缺 ffmpeg/demucs 都不中断整批）；无音轨素材单独归类提示；批量打印 `[i/N]` 计数与每个素材用时，收尾给总耗时与均值；`--log` 把运行输出落到 `<输出目录>/run.log`
@@ -117,6 +117,7 @@ python av_to_transcript_and_minutes.py ./素材目录 --meeting --srt \
 | `--clean` | 完成后删除中间件（三份 wav 与转写缓存 json），只留成稿；对已完成素材也生效 |
 | `--log` | 本次运行输出追加写入 `<输出目录>/run.log` |
 | `--replace-file 词典.txt` | 纠错词典文件（每行 `错=>对`） |
+| `--replace-save [词典.txt]` | 把本次 `--replace` 纠错条目合并写回词典（裸写=输出目录 `replace_dict.txt`），下次 `--replace-file` 裸写即自动带上 |
 | `--itn` | 中文逆文本正则化：三百二十万元 → 320万元、百分之八十 → 80%、二零二六年十月十五日 → 2026年10月15日 |
 | `--asr-engine auto` | 按 `--language` 路由识别引擎（中/英/粤走 AED，其余走 Qwen） |
 | `--demucs-model NAME` | 分离模型：`htdemucs`（默认）／`htdemucs_ft`（质量更好、慢约 4 倍）／`mdx_extra` 等；换模型自动重跑分离 |
