@@ -1,6 +1,6 @@
 # 音视频 → 转写文稿 / 会议纪要（av-to-transcript-and-minutes）
 
-一套**完全离线、本地运行**的「音视频 → 转写文稿 / 会议纪要」全流程工具箱：
+一套**默认完全离线、本地运行**的「音视频 → 转写文稿 / 会议纪要」全流程工具箱（亦可选接阿里云百炼云端 ASR 引擎）：
 
 ```
 视频 / 音频（mp4/mkv/mp3/m4a/wav/…）
@@ -11,7 +11,7 @@
         │
         ├─ ③ 噪声门清理              人声_转写用.wav（消除分离模型的静音伪影，保 VAD 可用）
         │
-        ├─ ④ 说话人分离 + 转写        Qwen3-ASR-1.7B × (pyannote / cam++)，带时间戳与说话人
+        ├─ ④ 说话人分离 + 转写        Qwen3-ASR-1.7B（本地）/ aed / cloud 云端 × (pyannote / cam++)，带时间戳与说话人
         │
         └─ ⑤ 组稿 + 排版规范 docx    转写文稿（普通）  或  会议原文（带标签，供提炼纪要）
                                      正式纪要由 AI Agent 按 meeting-notes-expert 模板提炼
@@ -23,7 +23,7 @@
 python av_to_transcript_and_minutes.py <视频/音频文件或文件夹> [-o 输出目录] [--meeting] [--srt] …
 ```
 
-> 当前版本：**v2.2** ｜ License: [MIT](LICENSE) ｜ 环境：Windows / Linux / macOS，需 FFmpeg 与 Python 3.10+
+> 当前版本：**v2.3** ｜ License: [MIT](LICENSE) ｜ 环境：Windows / Linux / macOS，需 FFmpeg 与 Python 3.10+
 
 ---
 
@@ -42,9 +42,11 @@ python av_to_transcript_and_minutes.py <视频/音频文件或文件夹> [-o 输
 - **跑前自检与提示**：跑前查显存，可用量低于 4 GB 时提示先停占卡程序或用 `--no-separate`；转写只得到 1 个说话人且用的是默认 campp 时，提示可改用 `--meeting` 或 pyannote 重跑
 - **磁盘可控**：`--clean` 完成后删除中间件（三份 wav 与转写缓存 json），只留成稿，长素材不再动辄留下上 GB 的中间 wav
 - **模型层可选与增强**：`--asr-engine auto` 按语言路由（中/英/粤走 FireRedASR2-AED，其余走 Qwen3-ASR）；`--vad firered` 用误报更低的 FireRedVAD 切段；`--demucs-model` 可选 htdemucs / htdemucs_ft / mdx_extra 等分离模型（换模型自动重跑）
+- **云端可选引擎（v2.3）**：`--asr-engine cloud` 免显存调用阿里云百炼（默认 `qwen-audio-3.1-asr-message`，WebSocket 整文件直出句级+字级时间戳；`--srt` 直接用云端时间戳，无需本地 fa-zh；驱动说话人分离字幕时逐段 4 线程并发）；可选子模型 `omni`（qwen3.8-omni-flash 全模态）与 `filetrans`（异步长音频，仅公网 URL）；`--hotwords` 走即时热词表生效。需 `DASHSCOPE_API_KEY`（环境变量）与 `pip install dashscope`
 - **输出规范化**：`--itn` 中文逆文本正则化（三百二十万元 → 320万元、二零二六年十月十五日 → 2026年10月15日），零依赖自写规则
 - **双人分声道素材**：`--split-channels` 按声道分轨转写，声道号直接当说话人，省掉声纹聚类、也不会把两人混在一起
 - **情绪与声纹**：`--emotion` 出 8 类情绪打分（写入 json 的 `emotions` 字段；**不做**笑声/掌声等音频事件检测）；`--speaker-db` 声纹库跨文件复用说话人身份（首次用 `--speaker-db-save` 建库）
+- **单人素材提速（v2.3）**：`--no-diarize` 跳过说话人分离直接整段转写（云端 message 引擎将走整文件一次调用），与 `--meeting` 互斥、缓存独立
 - **批量处理**：输入文件夹时递归处理其中所有音视频
 
 ---
@@ -102,7 +104,8 @@ python av_to_transcript_and_minutes.py ./素材目录 --meeting --srt \
 | `--meeting` | 产出会议原文（带时间戳+说话人标签）而非普通转写文稿 |
 | `--srt` | 额外产出 `.srt` 字幕（字级时间戳） |
 | `--diarize-engine auto\|pyannote\|campp` | 说话人分离引擎（`auto`=会议用 pyannote，其余 campp） |
-| `--asr-engine qwen\|aed` | 识别引擎：`qwen`（默认，多语言）／`aed`（中英粤更准）；**换引擎自动用新缓存重转** |
+| `--asr-engine qwen\|aed\|auto\|cloud` | 识别引擎：`qwen`（默认，多语言）／`aed`（中英粤更准）／`auto` 按语言路由／`cloud` 阿里云百炼云端引擎；**换引擎自动用新缓存重转** |
+| `--no-diarize` | 单人素材跳过说话人分离直接整段转写（更快；云端 message 引擎走整文件一次调用）；与 `--meeting` 互斥 |
 | `--replace "错=>对,错2=>对2"` | 识别后确定性替换，专名纠错比 `--hotwords` 可靠（同音异字配 `--asr-extra "--fuzzy"`） |
 | `--denoise` | 转写前 ZipEnhancer 降噪（仅真实含 BGM/强噪素材；干净素材不加更好） |
 | `--vad fsmn\|firered` | VAD 切段后端（默认 `fsmn`；`firered` 误报更低） |
@@ -120,6 +123,7 @@ python av_to_transcript_and_minutes.py ./素材目录 --meeting --srt \
 | `--replace-save [词典.txt]` | 把本次 `--replace` 纠错条目合并写回词典（裸写=输出目录 `replace_dict.txt`），下次 `--replace-file` 裸写即自动带上 |
 | `--itn` | 中文逆文本正则化：三百二十万元 → 320万元、百分之八十 → 80%、二零二六年十月十五日 → 2026年10月15日 |
 | `--asr-engine auto` | 按 `--language` 路由识别引擎（中/英/粤走 AED，其余走 Qwen） |
+| `--asr-engine cloud` | 云端识别（默认 message 通道）；换子模型加 `--asr-extra "--cloud-model omni\|filetrans"`；filetrans 需配 `--asr-extra "--cloud-url 公网URL"` |
 | `--demucs-model NAME` | 分离模型：`htdemucs`（默认）／`htdemucs_ft`（质量更好、慢约 4 倍）／`mdx_extra` 等；换模型自动重跑分离 |
 | `--split-channels` | 双人分声道素材按声道分轨转写，声道号即说话人；自动跳过 Demucs 与声纹聚类 |
 | `--emotion` | emotion2vec 输出 8 类情绪打分（写 json 的 `emotions`；不做笑声/掌声等事件检测） |

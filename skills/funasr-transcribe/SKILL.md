@@ -22,6 +22,7 @@ description: "本地音视频转文字（离线、GPU 加速、无需 API 密钥
 | 要字幕文件（SRT，可带说话人标签） | 加 `--srt`（fa-zh 强制对齐，字级时间戳） |
 | 专有名词/人名总听错 | 加 `--replace "错词=>对词"`（确定性替换） |
 | 录音嘈杂/带背景音乐 | 加 `--denoise`（ZipEnhancer 前处理，见约束 5） |
+| **免显存云端引擎（付费,准确率更高）** | `python .../qwen_asr.py <音频> --engine cloud` （默认 qwen-audio-3.1-asr-message,整文件直出时间戳;需 DASHSCOPE_API_KEY;详见下方 cloud 引擎节） |
 | 只要 FunASR 原生通道（对照/低显存兜底） | `python <技能目录>/scripts/transcribe.py <音频文件>` |
 | 给无标点的转写文本补标点 | 见 references/advanced.md 的 ct-punc 节 |
 | 分析录音/某段音频的情绪 | 见 references/advanced.md 的 emotion2vec 节 |
@@ -59,6 +60,35 @@ python qwen_asr.py 长录音.m4a --hotwords "十三希诺,ZCode"   # 热词偏�
 `--max-line 28` 单条字幕最大字数、`--device cpu`、`--no-t2s` 关繁转简、`--replace-file` 用词典文件。
 输入为 m4a/AAC 等 libsndfile 读不了的容器时，入口自动用 ffmpeg 转 16k mono wav 再进链路（stderr 提示 `[0]`；mp3/wav/flac 原生可读不受影响）。
 
+### cloud 引擎（--engine cloud,阿里云百炼 API,2026-10-07 接入并 E2E 验证）
+
+| 子模型 | --cloud-model | 通道形态 | 适用 |
+|--------|---------------|----------|------|
+| qwen-audio-3.1-asr-message | `message`（默认） | dashscope SDK WebSocket;非 diarize 时整文件一次调用 | 日常转写首选:整文件直出句级+**字级**时间戳,免本地 VAD/对齐;diarize 时逐段并发(4 线程)+本地声纹聚类,字幕复用云端字级时间戳跳过 fa-zh |
+| qwen3.8-omni-flash | `omni` | OpenAI 兼容;B64 直传,逐段 | 全模态模型兼职转写(无时间戳);默认关思考模式输出纯文本 |
+| qwen-audio-3.1-asr-filetrans | `filetrans` | 异步整文件,**仅公网 URL**（--cloud-url） | 超长音频一键转写,云端说话人分离+字级时间戳;位置参数仅作输出锚点 |
+
+```bash
+python qwen_asr.py 录音.m4a --engine cloud               # message 默认:整文件一次调用(免 VAD/对齐,快)
+python qwen_asr.py 录音.m4a --engine cloud --diarize --srt  # diarize 时走逐段+本地声纹聚类,字幕按 --max-line 细分
+python qwen_asr.py 录音.m4a --engine cloud --cloud-model omni   # omni 全模态通道(无时间戳)
+python qwen_asr.py 锚点.wav --engine cloud --cloud-model filetrans \
+       --cloud-url "https://.../meeting.mp3" --diarize --srt
+python separate_video_audio.py 录像.mp4 --asr-engine cloud --no-diarize  # 单人素材:跳过说话人分离(走整文件,最快)
+python separate_video_audio.py 录像.mp4 --asr-engine cloud  # 管线走云端(默认带说话人分离)
+```
+
+- 需要 `DASHSCOPE_API_KEY`（环境变量或注册表 HKCU\Environment,2026-10-07 已写注册表）;message 通道
+  另需 `pip install dashscope`（omni/filetrans 通道不需要）。cloud 下 campp 说话人分离、--replace 纠错、
+  --itn、--srt 全部照常复用;message/filetrans 的时间戳由云端提供(无需 fa-zh),omni 无时间戳。
+- message 通道整文件单次调用无需本地 VAD,但设了 --diarize 时改走逐段+本地声纹聚类;
+  --hotwords 全通道支持:message 走即时热词表（随请求传入 {词:4},免预创建;上限 50 条）,omni 走 prompt,filetrans 走参数。
+- 接口格式经真实探针验证:message 走 dashscope.audio.asr.Recognition（WebSocket,本地 wav 直传）;
+  omni 走 OpenAI 兼容 chat/completions（data:;base64,逐段）;filetrans 只收公网 URL（本地文件
+  无 OSS 时不要用 filetrans,用默认 message）;三款均按量计费、每模型有 10 小时免费额度。
+- 管线 `--no-diarize`:单人素材跳过说话人分离直接整段转写（更快;云端 message 将走整文件一次调用），与 --meeting 互斥，缓存独立（"不分人"键）。
+- speaker_id 从 0 的整数,与本地 campp 编号一致,--names 语义相同。
+
 ### transcribe.py — FunASR 原生通道（备选）
 
 ```bash
@@ -90,6 +120,11 @@ python diarize.py 访谈录音.m4a --threshold 0.7
 12. **「素材是否本来就干净」无法用能量差判断**（对照实验证伪，勿再尝试）：纯人声 TTS 的人声与背景音差 15.1 dB，人声+440Hz 背景乐差 12.7 dB，只差 2.4 dB，判据区分不出有无背景。需要跳过分离时手动加 `--no-separate`。
 13. **emotion2vec 只做情绪识别，不做音频事件检测**：它输出 8 类情绪（开心/难过/厌恶/中立/生气/惊讶/害怕/兴奋）的整段打分；**笑声、掌声这类事件它识别不了**，需要另装事件检测模型（如 AudioSet 系分类器），别把它当事件标注用。
 14. **声纹库只在 campp 引擎下可用**：pyannote 路径不产出声纹向量，加了 `--speaker-db` 会跳过并提示；裸写或 `--speaker-db auto`=用音频同目录（链路场景为输出目录）speaker_db.json，有则复用无则建库、命中自动更新；显式路径建库仍用 `--speaker-db-save`；命中阈值默认 0.75（同人被认成新人就调低）。
+
+15. **cloud 引擎的密钥与边界**：DASHSCOPE_API_KEY 走环境变量,回退注册表 HKCU\Environment（load_dashscope_key）,
+    绝不写进代码/配置文件；message 通道需 dashscope SDK（缺失时友好报错）,其余通道零新依赖；
+    filetrans 模式位置参数只作输出锚点（json/srt 落其旁）,真实音频源必须 --cloud-url 公网可达；
+    cloud 引擎不加载本地大模型（load_model/load_aed_model 跳过）,显存占用≈0,但 campp/--replace 等本地组件按需照常加载。
 
 ## 环境自检
 
