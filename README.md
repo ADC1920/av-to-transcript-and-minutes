@@ -23,7 +23,7 @@
 python av_to_transcript_and_minutes.py <视频/音频文件或文件夹> [-o 输出目录] [--meeting] [--srt] …
 ```
 
-> 当前版本：**v2.3** ｜ License: [MIT](LICENSE) ｜ 环境：Windows / Linux / macOS，需 FFmpeg 与 Python 3.10+
+> 当前版本：**v2.4** ｜ License: [MIT](LICENSE) ｜ 环境：Windows / Linux / macOS，需 FFmpeg 与 Python 3.10+
 
 ---
 
@@ -41,8 +41,10 @@ python av_to_transcript_and_minutes.py <视频/音频文件或文件夹> [-o 输
 - **批量容错与可观测**：单个文件失败只计一次失败并继续（素材损坏、缺 ffmpeg/demucs 都不中断整批）；无音轨素材单独归类提示；批量打印 `[i/N]` 计数与每个素材用时，收尾给总耗时与均值；`--log` 把运行输出落到 `<输出目录>/run.log`
 - **跑前自检与提示**：跑前查显存，可用量低于 4 GB 时提示先停占卡程序或用 `--no-separate`；转写只得到 1 个说话人且用的是默认 campp 时，提示可改用 `--meeting` 或 pyannote 重跑
 - **磁盘可控**：`--clean` 完成后删除中间件（三份 wav 与转写缓存 json），只留成稿，长素材不再动辄留下上 GB 的中间 wav
+- **平铺输出（v2.4）**：`--flat` 把成稿 docx（及字幕）直接放到素材同目录，删除整个工作子目录（含中间件、md 底稿、`.demucs_model` 标记与拆轨产物）——素材目录最终只有「原始音视频 + 成稿」；重跑时成稿在素材目录即视为已完成，自动跳过
 - **模型层可选与增强**：`--asr-engine auto` 按语言路由（中/英/粤走 FireRedASR2-AED，其余走 Qwen3-ASR）；`--vad firered` 用误报更低的 FireRedVAD 切段；`--demucs-model` 可选 htdemucs / htdemucs_ft / mdx_extra 等分离模型（换模型自动重跑）
 - **云端可选引擎（v2.3）**：`--asr-engine cloud` 免显存调用阿里云百炼（默认 `qwen-audio-3.1-asr-message`，WebSocket 整文件直出句级+字级时间戳；`--srt` 直接用云端时间戳，无需本地 fa-zh；驱动说话人分离字幕时逐段 4 线程并发）；可选子模型 `omni`（qwen3.8-omni-flash 全模态）与 `filetrans`（异步长音频，仅公网 URL）；`--hotwords` 走即时热词表生效。需 `DASHSCOPE_API_KEY`（环境变量）与 `pip install dashscope`
+- **专名质量机制（v2.4）**：管线根目录放 `hotwords.txt`（热词表，每行一个词，# 注释）与 `replace_dict.txt`（纠错词典，每行「错=>对」）即**自动加载、无需任何参数**——热词走识别阶段偏置、词典走识别后确定性替换，两者内容都进转写缓存指纹（改动后旧缓存自动不复用）；模板见 `*.example.txt`。`--replace-save` 把本次纠错条目合并写回词典，专名修正可跨次积累。**`--flat` 平铺模式不会删除这两个文件**（固定放管线根目录）
 - **输出规范化**：`--itn` 中文逆文本正则化（三百二十万元 → 320万元、二零二六年十月十五日 → 2026年10月15日），零依赖自写规则
 - **双人分声道素材**：`--split-channels` 按声道分轨转写，声道号直接当说话人，省掉声纹聚类、也不会把两人混在一起
 - **情绪与声纹**：`--emotion` 出 8 类情绪打分（写入 json 的 `emotions` 字段；**不做**笑声/掌声等音频事件检测）；`--speaker-db` 声纹库跨文件复用说话人身份（首次用 `--speaker-db-save` 建库）
@@ -113,14 +115,15 @@ python av_to_transcript_and_minutes.py ./素材目录 --meeting --srt \
 | `--max-line N` / `--merge-gap N` | 单条字幕最大字数（默认 28）／相邻同说话人合并间隔 ms（默认 800，0 关闭） |
 | `--asr-extra "--fuzzy --min-seg 300"` | 其余 `qwen_asr.py` 参数原样透传（同样计入缓存指纹） |
 | `--names "0=张三,1=李四"` | 说话人真名映射 |
-| `--hotwords "词1,词2"` | 热词偏置，提升专名识别率 |
+| `--hotwords "词1,词2"` | 热词偏置，提升专名识别率；未指定时自动加载根目录 `hotwords.txt` |
 | `--no-separate` | 跳过人声分离（纯人声音频可直接转写） |
 | `--no-asr` | 只做拆轨/分离，不转写 |
 | `--verbose` | 实时透传各子进程输出，排查卡顿与失败原因 |
 | `--clean` | 完成后删除中间件（三份 wav 与转写缓存 json），只留成稿；对已完成素材也生效 |
+| `--flat` | **平铺输出（v2.4）**：成稿直接放素材同目录，删工作子目录与 md 底稿（含中间件、拆轨产物） |
 | `--log` | 本次运行输出追加写入 `<输出目录>/run.log` |
-| `--replace-file 词典.txt` | 纠错词典文件（每行 `错=>对`） |
-| `--replace-save [词典.txt]` | 把本次 `--replace` 纠错条目合并写回词典（裸写=输出目录 `replace_dict.txt`），下次 `--replace-file` 裸写即自动带上 |
+| `--replace-file [词典.txt]` | 纠错词典文件（每行 `错=>对`）；未指定时自动加载根目录 `replace_dict.txt`（存在即加载）；裸写=根目录 `replace_dict.txt` |
+| `--replace-save [词典.txt]` | 把本次 `--replace` 纠错条目合并写回词典（裸写=根目录 `replace_dict.txt`），下次 `--replace-file` 裸写即自动带上 |
 | `--itn` | 中文逆文本正则化：三百二十万元 → 320万元、百分之八十 → 80%、二零二六年十月十五日 → 2026年10月15日 |
 | `--asr-engine auto` | 按 `--language` 路由识别引擎（中/英/粤走 AED，其余走 Qwen） |
 | `--asr-engine cloud` | 云端识别（默认 message 通道）；换子模型加 `--asr-extra "--cloud-model omni\|filetrans"`；filetrans 需配 `--asr-extra "--cloud-url 公网URL"` |
@@ -158,6 +161,8 @@ python av_to_transcript_and_minutes.py ./素材目录 --meeting --srt \
 av-to-transcript-and-minutes/
 ├── av_to_transcript_and_minutes.py  # 全自动链路主脚本（①→⑤）
 ├── test_pipeline_e2e.py             # 端到端回归（自动合成素材，17 项断言）
+├── hotwords.example.txt             # 热词表示例（复制为 hotwords.txt 自动加载）
+├── replace_dict.example.txt         # 纠错词典示例（复制为 replace_dict.txt 自动加载）
 ├── requirements.txt
 ├── skills/
 │   ├── funasr-transcribe/
@@ -191,6 +196,11 @@ python skills/funasr-transcribe/scripts/test_qwen_asr_units.py
 2026-10-01 可用性完善后复测（同一套断言仍全绿，41 秒），另做专项验证：`--clean` 后目录只剩成稿、
 `--log` 产出 26 行运行日志、无音轨视频归为「无音轨」而非抛 ffmpeg 原始输出、`--replace-file` 词典替换生效、
 批量输出 `[i/N]` 与总耗时均值。
+
+2026-10-08 v2.4 回流批次复测：`--flat` 平铺输出（成稿落素材目录、工作子目录全清、幂等跳过）、
+根目录 `hotwords.txt`/`replace_dict.txt` 零参数自动加载、词典内容进缓存指纹（改词典自动重转）、
+Demucs 子进程 `HF_HUB_OFFLINE=1`（离线环境省约 30 秒 HuggingFace 重试等待）；
+单测新增 cloud 引擎离线用例组（§14），CI 工作流纳入 py_compile + 全量离线单测。
 
 实测性能参考（RTX 5070 Ti 16GB，28 分钟中文会议）：
 
