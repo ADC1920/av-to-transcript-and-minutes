@@ -13,6 +13,11 @@ separated_out/
 _asr_job.json
 _demucs_tmp/
 _article_base_tmp.docx
+run.log
+
+# 真实词表（含业务信息，不入库；用 *.example.txt 模板）
+hotwords.txt
+replace_dict.txt
 
 # 音频 / 视频素材（本地数据，勿上传）
 *.mp3

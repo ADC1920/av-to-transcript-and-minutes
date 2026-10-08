@@ -285,7 +285,7 @@ def load_dashscope_key():
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as reg:
             k, _ = winreg.QueryValueEx(reg, "DASHSCOPE_API_KEY")
         return k
-    except OSError:
+    except (OSError, ImportError):
         sys.exit("cloud 引擎需要 DASHSCOPE_API_KEY(未在环境变量与 HKCU\\Environment 中找到)")
 
 

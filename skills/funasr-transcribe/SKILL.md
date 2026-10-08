@@ -15,7 +15,7 @@ description: "本地音视频转文字（离线、GPU 加速、无需 API 密钥
 
 | 用户需求 | 用法 |
 |---------|------|
-| **视频/音频一键出文稿**（拆轨 + 人声分离 + 说话人分离转写 + 规范 docx） | `python <技能目录>/scripts/separate_video_audio.py <视频或音频>`（见下节） |
+| **视频/音频一键出文稿**（拆轨 + 人声分离 + 说话人分离转写 + 规范 docx） | `python <技能目录>/scripts/av_to_transcript_and_minutes.py <视频或音频>`（见下节） |
 | 视频/会议要带时间戳与说话人标签的原文 | 上条加 `--meeting`（出会议原文底稿，正式纪要再按 meeting-notes-expert 提炼） |
 | **日常转写（首选）**：单人或不需要区分说话人 | `python <技能目录>/scripts/qwen_asr.py <音频文件>` |
 | 会议/访谈，要区分"谁说了什么" | `python .../qwen_asr.py <音频文件> --diarize` |
@@ -74,8 +74,8 @@ python qwen_asr.py 录音.m4a --engine cloud --diarize --srt  # diarize 时走�
 python qwen_asr.py 录音.m4a --engine cloud --cloud-model omni   # omni 全模态通道(无时间戳)
 python qwen_asr.py 锚点.wav --engine cloud --cloud-model filetrans \
        --cloud-url "https://.../meeting.mp3" --diarize --srt
-python separate_video_audio.py 录像.mp4 --asr-engine cloud --no-diarize  # 单人素材:跳过说话人分离(走整文件,最快)
-python separate_video_audio.py 录像.mp4 --asr-engine cloud  # 管线走云端(默认带说话人分离)
+python av_to_transcript_and_minutes.py 录像.mp4 --asr-engine cloud --no-diarize  # 单人素材:跳过说话人分离(走整文件,最快)
+python av_to_transcript_and_minutes.py 录像.mp4 --asr-engine cloud  # 管线走云端(默认带说话人分离)
 ```
 
 - 需要 `DASHSCOPE_API_KEY`（环境变量或注册表 HKCU\Environment,2026-10-07 已写注册表）;message 通道
@@ -141,29 +141,31 @@ python -c "import funasr, torch; print(funasr.__version__, torch.cuda.is_availab
 
 模型清单与下载 ID、fa-zh 强制对齐 / 专名纠错 / FireRedVAD / ZipEnhancer 的接口与实测数据、ct-punc / emotion2vec 调用代码、环境安装与修复步骤、完整踩坑记录 → 读 **references/advanced.md**（按需加载，不预读）。
 
-## 全自动链路 separate_video_audio.py（视频/音频 → 文稿 → docx）
+## 全自动链路 av_to_transcript_and_minutes.py（视频/音频 → 文稿 → docx）
 
 一条命令跑完：FFmpeg 拆轨（无损 copy）→ Demucs 人声/背景音分离 → agate 噪声门 → qwen_asr 恒走 `--diarize` 转写 → 组稿 → article-format 规范 docx。视频与音频通用，逐环节幂等可续跑。
 
 ```bash
-python separate_video_audio.py 会议录像.mp4              # 默认出「转写文稿」docx（每 4 句一段）
-python separate_video_audio.py 会议录像.mp4 --meeting    # 出「会议原文」docx（带 [分:秒] 时间戳与说话人标签）
-python separate_video_audio.py 录音.m4a --no-separate    # 纯人声素材：跳过 Demucs 直接转写（更快）
-python separate_video_audio.py 素材目录 -o 输出目录        # 批量；默认落 <输入>/separated_out
-python separate_video_audio.py 录像.mp4 --names "0=张三,1=李四" --srt
-python separate_video_audio.py 录像.mp4 --asr-engine aed  # 中/英/粤更准（日文禁用；换引擎自动重转）
-python separate_video_audio.py 录像.mp4 --asr-engine auto --language zh  # 按语言路由：中/英/粤走 aed
-python separate_video_audio.py 录像.mp4 --itn            # 逆文本正则化：三百二十万元 -> 320万元
-python separate_video_audio.py 录像.mp4 --demucs-model htdemucs_ft   # 分离质量优先（官方微调版，慢约 4 倍）
-python separate_video_audio.py 双人录音.wav --split-channels        # 双人分声道录制：声道号直接当说话人
-python separate_video_audio.py 录音.wav --emotion                   # 8 类情绪分析（写入 json 的 emotions）
-python separate_video_audio.py 会议.wav --speaker-db           # 声纹库 auto：输出目录 speaker_db.json 有则复用无则建库（也可给显式路径）
-python separate_video_audio.py 录像.mp4 --replace "小蜜=>小米,开饭时间=>开放时间"   # 专名确定性纠错
-python separate_video_audio.py 噪声录像.mp4 --denoise --vad firered              # 强噪前处理 + 更低误报 VAD
-python separate_video_audio.py 录像.mp4 --asr-extra "--fuzzy --min-seg 300"      # 其余 qwen_asr 参数透传
-python separate_video_audio.py 录像.mp4 --replace-file 词典.txt                    # 纠错词典文件（每行 错=>对）
-python separate_video_audio.py 素材目录 --clean --log                             # 只留成稿 + 运行日志落盘
-python separate_video_audio.py 录像.mp4 --verbose        # 实时看各子进程输出，排查卡顿/失败原因
+python av_to_transcript_and_minutes.py 会议录像.mp4              # 默认出「转写文稿」docx（每 4 句一段）
+python av_to_transcript_and_minutes.py 会议录像.mp4 --meeting    # 出「会议原文」docx（带 [分:秒] 时间戳与说话人标签）
+python av_to_transcript_and_minutes.py 录音.m4a --no-separate    # 纯人声素材：跳过 Demucs 直接转写（更快）
+python av_to_transcript_and_minutes.py 素材目录 -o 输出目录        # 批量；默认落 <输入>/separated_out
+python av_to_transcript_and_minutes.py 录像.mp4 --names "0=张三,1=李四" --srt
+python av_to_transcript_and_minutes.py 录像.mp4 --asr-engine aed  # 中/英/粤更准（日文禁用；换引擎自动重转）
+python av_to_transcript_and_minutes.py 录像.mp4 --asr-engine auto --language zh  # 按语言路由：中/英/粤走 aed
+python av_to_transcript_and_minutes.py 录像.mp4 --itn            # 逆文本正则化：三百二十万元 -> 320万元
+python av_to_transcript_and_minutes.py 录像.mp4 --demucs-model htdemucs_ft   # 分离质量优先（官方微调版，慢约 4 倍）
+python av_to_transcript_and_minutes.py 双人录音.wav --split-channels        # 双人分声道录制：声道号直接当说话人
+python av_to_transcript_and_minutes.py 录音.wav --emotion                   # 8 类情绪分析（写入 json 的 emotions）
+python av_to_transcript_and_minutes.py 会议.wav --speaker-db           # 声纹库 auto：输出目录 speaker_db.json 有则复用无则建库（也可给显式路径）
+python av_to_transcript_and_minutes.py 录像.mp4 --replace "小蜜=>小米,开饭时间=>开放时间"   # 专名确定性纠错
+python av_to_transcript_and_minutes.py 噪声录像.mp4 --denoise --vad firered              # 强噪前处理 + 更低误报 VAD
+python av_to_transcript_and_minutes.py 录像.mp4 --asr-extra "--fuzzy --min-seg 300"      # 其余 qwen_asr 参数透传
+python av_to_transcript_and_minutes.py 录像.mp4 --replace-file 词典.txt                    # 纠错词典文件（每行 错=>对）
+python av_to_transcript_and_minutes.py 素材目录 --clean --log                             # 只留成稿 + 运行日志落盘
+python av_to_transcript_and_minutes.py 录像.mp4 --verbose        # 实时看各子进程输出，排查卡顿/失败原因
+python av_to_transcript_and_minutes.py 素材目录 --flat          # 平铺输出：成稿直接放素材同目录，过程件全清
+python av_to_transcript_and_minutes.py 录像.mp4 --flat --log    # 平铺成稿 + 运行日志落盘
 ```
 
 行为要点：
@@ -174,6 +176,7 @@ python separate_video_audio.py 录像.mp4 --verbose        # 实时看各子进�
   不重跑分离与转写，不再需要 `--force` 全量重跑。
 - `--clean` 完成后删除中间件（三份 wav 与转写缓存 json），只留成稿；对已完成的素材加 `--clean`
   也会顺手清掉残留中间件。注意缓存被删后换参数重转会重新走一遍分离，这是换磁盘空间的有意取舍。
+- `--flat` 平铺输出（v2.4）：成稿 docx（及 `--srt` 的字幕）移到素材同目录，随后删除整个工作子目录（含 md 底稿、`.demucs_model` 标记、中间件与拆轨产物），默认 separated_out 目录清空后一并移除；已完成素材重跑时自动跳过（成稿在素材目录即视为完成）。
 - `--log` 把本次运行输出追加写入 `<输出目录>/run.log`（终端与文件双写），批量跑完可回溯。
 - 跑前查显存：可用量低于 4 GB 时提示先停其它占卡程序或用 `--no-separate`（实测链路峰值增量约 4.4 GB）。
 - 转写前粗估信噪比，低于 15 dB 时提示可试 `--denoise`（只提示不自动开——白噪声场景实测无收益，只在真实含 BGM/强噪素材上值得试）。
@@ -182,7 +185,7 @@ python separate_video_audio.py 录像.mp4 --verbose        # 实时看各子进�
 - `--demucs-model` 可选 htdemucs（默认）／htdemucs_ft（官方微调版，慢约 4 倍）／mdx_extra 等；换模型会按新模型重跑分离，模型名记在产物目录的 `.demucs_model` 标记里。
 - 素材无音轨（或音频损坏）归类为「无音轨」单独计数，不再把 ffmpeg 原始输出整段抛出。
 - `--speaker-db` 裸写（auto）：库放输出目录 `speaker_db.json`，批内跨素材共享，命中显示库中姓名并更新声纹；库更新后重转同一素材需 `--force`（库路径恒定，不触发缓存重转）。
-- `--replace-save`：把本次 `--replace`/`--replace-file` 条目合并写回词典（裸写=输出目录 `replace_dict.txt`，键同新值覆盖、注释保留）；下次 `--replace-file` 裸写自动带上，专名修正可积累。
+- `--replace-save`：把本次 `--replace`/`--replace-file` 条目合并写回词典（裸写=**管线根目录** `replace_dict.txt`，键同新值覆盖、注释保留）；下次 `--replace-file` 裸写自动带上，专名修正可积累。**v2.4 起词典与热词表固定放管线根目录**——平铺模式（`--flat`）会删整个工作子目录，放输出目录会被一并删掉、积累失效。
 - 转写后只得到 1 个说话人、且用的是默认 campp 时，提示可改用 `--meeting` 或 pyannote 重跑。
 - 批量打印 `[i/N]` 计数与每个素材用时，收尾给总耗时与均值。
 - 批量时单个文件失败只计一次失败并继续下一个（素材损坏、缺 ffmpeg/demucs 都不会中断整批），
@@ -195,9 +198,18 @@ python separate_video_audio.py 录像.mp4 --verbose        # 实时看各子进�
 - 依赖 ffmpeg / ffprobe / demucs（均在 PATH）与 qwen_asr.py（同目录自动定位，可用 `VOICE_ASR_SCRIPT` 覆盖）。
 - 短素材用默认 campp 聚类可能分不出说话人（VAD 段不足 2 段时按单一说话人处理）；要区分说话人的会议素材加 `--meeting`（自动走 pyannote）。
 
+## 专名质量机制（v2.4）
+
+管线通过「热词表 + 纠错词典」双机制维护专名准确率，两个文件都放**管线根目录固定位置**，**自动加载、无需任何参数**，且**平铺模式（--flat）不会删除它们**：
+
+- `hotwords.txt`：热词表，每行一个词（# 注释），识别阶段偏置（云端即时热词上限 50 条）。**热词是偏置不是保证**——长主句命中率高、短插入句可能漏。
+- `replace_dict.txt`：纠错词典，每行「错=>对」，识别后**确定性全文替换**（比热词可靠）。收词原则：确认为错写的专名；常用词组合慎收（全文替换会误伤）。
+- **维护方式**：纪要核稿确认的新专名写进热词表（提升识别）、确认的错写写进词典（事后兜底）。两个文件改动后**新转写自动生效**（内容进缓存指纹：词典哈希 + 热词哈希），已交付素材不追溯（需 `--force` 重跑）。
+- `--replace-save` 可把本次 `--replace` 条目合并回写词典。模板见仓库根 `*.example.txt`。
+
 ## 脚本真源说明
 
-`scripts/qwen_asr.py`、`scripts/separate_video_audio.py`、`scripts/itn_zh.py` 与各测试脚本
+`scripts/qwen_asr.py`、`scripts/av_to_transcript_and_minutes.py`、`scripts/itn_zh.py` 与各测试脚本
 （`test_qwen_asr_units.py` / `test_itn_zh.py` / `test_pipeline_e2e.py`）的真源在 ZCode 工作目录
 `D:\Computer Software\24-Zcode DeskTop\Zcode Data\Daily Use\scripts\`（用户日用入口），技能目录内为同步副本；
 改动后两处同改（或复制覆盖），避免漂移。单元自测：`python scripts/test_qwen_asr_units.py`、
@@ -209,10 +221,10 @@ python separate_video_audio.py 录像.mp4 --verbose        # 实时看各子进�
 与模型层三批改进（`--itn`、`--engine auto`、`--vad firered` 修复、`--split-channels`、
 `--emotion`、`--speaker-db`、`--demucs-model`、SNR 估计、`--clean`、`--log` 等）。
 这批优化已通过 PR #2 与 PR #3 squash 合并进上游 `A2194008525/av-to-transcript-and-minutes`
-（`216c092`，2026-10-01）。本副本 `separate_video_audio.py` 与上游根脚本
-`av_to_transcript_and_minutes.py` 的差异只剩命名与技能路径查找：本副本 article-format
+（`216c092`，2026-10-01）。本副本 `av_to_transcript_and_minutes.py` 与上游根脚本同名，差异只剩技能路径查找：本副本 article-format
 候选为 `.zcode` + `.agents` + `.claude` + 仓库内（DSH 副本为 `.dsh` + `.agents` + `.claude`）。
-上游更新时按「上游版本 + 命名 + 这一处路径适配」的口径合并，勿整文件覆盖。
+上游更新时按「上游版本 + 这一处路径适配」的口径合并，勿整文件覆盖。
+**2026-10-08 v2.4 回流**：`--flat` 平铺输出与根目录热词/词典零参数自动加载（含词典哈希进缓存指纹）、Demucs 子进程 `HF_HUB_OFFLINE=1` 已在本副本与上游根脚本同步。
 
 **DSH 侧副本**与本副本同状态、互相独立维护；其逐批改动历史与回滚点
 （`~/.dsh/backups/asr-*`）见该副本 SKILL.md 的「脚本真源说明」节。
