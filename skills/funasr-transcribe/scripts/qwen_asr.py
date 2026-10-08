@@ -490,7 +490,7 @@ def run_cloud_filetrans(args, out_json, out_srt, matcher, t2s, itn_fn, names, lo
         if st in ("SUCCEEDED", "FAILED", "CANCELED"):
             break
         if time.time() - last_ping > 30:
-            log(f"[1b] 轮询中... 状态 {st or jq.get("code", rq.status_code)}")
+            log(f"[1b] 轮询中... 状态 {st or jq.get('code', rq.status_code)}")
             last_ping = time.time()
     st = (jq or {}).get("output", {}).get("task_status")
     if st != "SUCCEEDED":
