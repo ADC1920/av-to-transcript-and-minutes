@@ -188,11 +188,12 @@ python "%USERPROFILE%\.zcode\skills\article-format\scripts\article_style.py" 中
 python "%USERPROFILE%\.zcode\skills\meeting-notes-expert\scripts\fix_minutes_docx.py" 纪要.docx 纪要-终.docx
 ```
 
-### 交付前验证（三层）
+### 交付前验证（四层）
 
-1. **结构断言**：`python "%USERPROFILE%\.zcode\skills\article-format\scripts\verify_article_style.py" 纪要-终.docx`（约 65 条，随表格数浮动；含纸型 A4 / 页边距 2.54cm / 无字面 `**` 残留）。
-2. **XML 合法**：`officecli validate 纪要-终.docx`（要求 0 错误）。**WPS 保存过的文件会报 `uiPriority`/`themeFontLang` 元素顺序告警——这是 WPS 的写法不是文件损坏**：与编辑前备份对照，备份同报即放行；仅 document.xml 正文结构错误才算失败，渲染通过即健康。
-3. **真机渲染**：WPS 导出 PDF 后目检。本技能附渲染辅助脚本——`scripts\docx2pdf_wps.ps1`（`pwsh -File ... -Src <docx 绝对路径> -Dst <pdf 绝对路径>`，**两参数必须绝对路径**——相对路径会让 WPS COM 报「RPC 服务器不可用 0x800706BA」崩溃）与 `scripts\rasterize_pdf.py`（PDF 逐页转 PNG）；重点看表格列宽无截断、表头跨页重复、无字面星号，缺陷修好后重新出稿复验。续改模式（就地编辑）场景的验证＝人名与数字一致性复扫＋渲染目检，不必重跑全套结构断言。
+1. **结构与溯源**：`python "%USERPROFILE%\.zcode\skills\meeting-notes-expert\scripts\validate_minutes.py" 纪要-终.docx --source 会议原文.txt`（必需节、待办六列与字段、决策句式、禁用标注、数字与责任人溯源；有源材料时必跑，`--strict` 让告警也阻断；脚本自带 `--selftest`）。回归基线见 `references/golden/`（`source.md` 与 `expected.md` 成对，改动提炼口径后 `--source` 复跑对照）。
+2. **结构断言**：`python "%USERPROFILE%\.zcode\skills\article-format\scripts\verify_article_style.py" 纪要-终.docx`（约 65 条，随表格数浮动；含纸型 A4 / 页边距 2.54cm / 无字面 `**` 残留）。
+3. **XML 合法**：`officecli validate 纪要-终.docx`（要求 0 错误）。**WPS 保存过的文件会报 `uiPriority`/`themeFontLang` 元素顺序告警——这是 WPS 的写法不是文件损坏**：与编辑前备份对照，备份同报即放行；仅 document.xml 正文结构错误才算失败，渲染通过即健康。
+4. **真机渲染**：WPS 导出 PDF 后目检。本技能附渲染辅助脚本——`scripts\docx2pdf_wps.ps1`（`pwsh -File ... -Src <docx 绝对路径> -Dst <pdf 绝对路径>`，**两参数必须绝对路径**——相对路径会让 WPS COM 报「RPC 服务器不可用 0x800706BA」崩溃）与 `scripts\rasterize_pdf.py`（PDF 逐页转 PNG）；重点看表格列宽无截断、表头跨页重复、无字面星号，缺陷修好后重新出稿复验。续改模式（就地编辑）场景的验证＝人名与数字一致性复扫＋渲染目检，不必重跑全套结构断言。
 
 例外：用户明确指定其他格式、给出自定义模板或具体排版要求时，以用户指定为准。
 
