@@ -16,7 +16,7 @@ description: "本地音视频转文字（离线、GPU 加速、无需 API 密钥
 | 用户需求 | 用法 |
 |---------|------|
 | **视频/音频一键出文稿**（拆轨 + 人声分离 + 说话人分离转写 + 规范 docx） | `python <技能目录>/scripts/av_to_transcript_and_minutes.py <视频或音频>`（见下节） |
-| 视频/会议要带时间戳与说话人标签的原文 | 上条加 `--meeting`（出会议原文底稿，正式纪要再按 meeting-notes-expert 提炼） |
+| 视频/会议要带时间戳与说话人标签的原文 | 上条加 `--meeting`（出会议原文底稿，正式总结再按 meeting-notes-expert 提炼；会议场景为会议纪要） |
 | **日常转写（首选）**：单人或不需要区分说话人 | `python <技能目录>/scripts/qwen_asr.py <音频文件>` |
 | 会议/访谈，要区分"谁说了什么" | `python .../qwen_asr.py <音频文件> --diarize` |
 | 要字幕文件（SRT，可带说话人标签） | 加 `--srt`（fa-zh 强制对齐，字级时间戳） |

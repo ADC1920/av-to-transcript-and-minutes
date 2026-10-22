@@ -1,6 +1,6 @@
-# 音视频 → 转写文稿 / 会议纪要（av-to-transcript-and-minutes）
+# 音视频 → 转写文稿 / 结构化总结（av-to-transcript-and-minutes）
 
-一套**默认完全离线、本地运行**的「音视频 → 转写文稿 / 会议纪要」全流程工具箱（亦可选接阿里云百炼云端 ASR 引擎）：
+一套**默认完全离线、本地运行**的「音视频 → 转写文稿 / 结构化总结」全流程工具箱（亦可选接阿里云百炼云端 ASR 引擎）：
 
 ```
 视频 / 音频（mp4/mkv/mp3/m4a/wav/…）
@@ -13,8 +13,8 @@
         │
         ├─ ④ 说话人分离 + 转写        Qwen3-ASR-1.7B（本地）/ aed / cloud 云端 × (pyannote / cam++)，带时间戳与说话人
         │
-        └─ ⑤ 组稿 + 排版规范 docx    转写文稿（普通）  或  会议原文（带标签，供提炼纪要）
-                                     正式纪要由 AI Agent 按 meeting-notes-expert 模板提炼
+        └─ ⑤ 组稿 + 排版规范 docx    转写文稿（普通）  或  会议原文（带标签，供提炼总结）
+                                     正式总结由 AI Agent 按 meeting-notes-expert 模板提炼
 ```
 
 **一条命令跑完 ①→⑤**：
@@ -151,7 +151,7 @@ python av_to_transcript_and_minutes.py ./素材目录 --meeting --srt \
 | `会议原文-<名>.md/.docx` | 会议模式成稿（`[00:00] 说话人N：文本`） |
 | `会议原文-<名>.srt` | 字幕（`--srt`，含说话人标记） |
 
-**会议纪要**由 AI Agent 读取「会议原文」后按 [meeting-notes-expert](skills/meeting-notes-expert/SKILL.md) 模板提炼成五段式纪要（基本信息 / 会议内容 / 核心要点 / 会议总结 / 待办事项表）——这一步是理解性工作，交给会话内的 AI 完成，产出 `会议纪要-<名>.docx`。
+**结构化总结**由 AI Agent 读取「会议原文」后按 [meeting-notes-expert](skills/meeting-notes-expert/SKILL.md) 模板提炼成七节式总结（基本信息 / 结论 / 关键决策或要点 / 行动事项 / 待定与开放问题 / 上期回顾 / 内容详情）——这一步是理解性工作，交给会话内的 AI 完成。会议场景产出 `会议纪要-<名>.docx`，讲座、访谈、播客等其他场景产出 `总结-<名>.docx`。
 
 ---
 
@@ -175,7 +175,7 @@ av-to-transcript-and-minutes/
 │   │       ├── test_qwen_asr_units.py       # 引擎单元测试
 │   │       └── test_firered_mem_patch.py    # AED 显存补丁单测
 │   └── meeting-notes-expert/
-│       └── SKILL.md                 # 纪要整理技能（五段式模板）
+│       └── SKILL.md                 # 总结整理技能（七节模板，会议/通用双场景）
 └── LICENSE
 ```
 
