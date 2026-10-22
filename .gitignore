@@ -9,6 +9,7 @@ separated_out/
 转写文稿-*
 会议原文-*
 会议纪要-*
+总结-*
 *.srt
 _asr_job.json
 _demucs_tmp/

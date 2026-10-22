@@ -1,5 +1,48 @@
 # meeting-notes-expert 技能变更记录
 
+## 2026-10-22 · v1.8.0
+
+**动因**（用户指令「按优先级执行优化」）：对 GitHub 同类项目调研后按优先级落地三项——①借鉴 silverstein/minutes 的结构化字段能力；②借鉴 AutoMin（SIGDial 2025 第三届自动纪要共享任务）的分场景评测思路扩充回归集；③吸收 WhisperX 的转写质量工程结论作为验收口径。
+
+**变更**：
+1. **四类产出物归属**（SKILL.md「提取口径」后新增表格）：把材料中的表述按语义分派为行动项 / 决策 / 开放问题 / **软承诺**四类，软承诺（有承接人但带「尽量／看看能不能／有空时」）明确入待办表、优先级「低」、备注写明「会上为软性表态」。此前这类表述只能在「升格成确定任务」和「整条丢掉」之间二选一。
+2. **负向过滤口径修正**：原「建议与对冲承诺不升格为确定任务」补全为「有明确承接人的按软承诺入表并标注强度，无承接人的不提取」——原文只说了不进表，会让软承诺无处安放。
+3. **质量自检新增「四类归位」条**：软承诺既没被写成确定任务，也没被整条丢掉。
+4. **校验报告三态**（`scripts/validate_minutes.py`）：新增 `summarize()`，把二元 PASS/FAIL 细分为 `complete`（全过）/ `degraded`（无 FAIL 但有 WARN）/ `failed`（有 FAIL）；控制台与 `--json` 报告同步输出，JSON 增 `status` 与 `processing_warnings`（每条形如 `{step, reason, message}`，可定位到具体校验步骤）。借 silverstein/minutes 的 `status` 与 `processing_warnings` 设计。
+5. **schema 扩展**（`references/minutes-schema.json`）：新增 `status` 与 `processing_warnings` 属性及 `$defs/OutputStatus`、`$defs/ProcessingWarning` 定义。
+6. **selftest 增第 4 项**：三态判定断言（干净稿 complete / 有 WARN 的 degraded / 坏例 failed 且告警清单非空）。
+7. **多场景 golden 用例集**（`references/golden/cases/`）：新增两条用例，每条只压一个提炼难点——`soft-commitment`（软承诺入表不升格、开放问题不混入待办）、`no-actions`（纯通报、无决策无待办的声明分支）。口径参考 AutoMin 分场景评测做法。
+8. **批量回归脚本**（`scripts/golden_cases.py`）：自动发现旧单例与 `cases/*/`，逐个调校验器并汇总；`--list` 只列，位置参数按子串过滤。
+9. **交付前验证第 1 条改写**：补三态与告警说明，回归命令从单文件改为 `golden_cases.py` 批量。
+10. **新增「转写质量核对」节**：五类症状（幻觉、专名错、说话人过切、时间戳偏移、中英混说）对应的检查点与处置，并注明口径来源为 WhisperX 的公开工程结论；同时明确本管线已具备 VAD 切段、短段合并、小簇吸收、字级时间戳，**不需要换引擎**。
+11. **修复 docx 校验的既有缺陷**（`parse_docx`）：此前只认段落文本里的字面 `##` 标记，而 article-format 出稿后标题是段落样式、文本中不含 `##`，导致对成品 docx 跑校验必然报「必需节齐备 缺：会议结论…」等 4 项 FAIL——SKILL.md 写的验证第 1 步（`validate_minutes.py 纪要-终.docx`）实际从未跑通过。现按段落样式（`Heading N` / `标题 N` / `Title`）还原成 Markdown 标题，md 与 docx 走同一套解析规则。实测修复前 4 FAIL、修复后 0 FAIL 且状态 `complete`。
+
+**刻意不做**：不移植 silverstein/minutes 的 `action_items.status`（open/closed）——v1.6.0 已按用户裁定移除待办与决策的状态标注；不替换转写引擎（Whisper 系中文弱于现有 Qwen3-ASR/FireRedASR）；不引入 Meetily 的实时捕获层（本项目是文件批处理场景）。
+
+**验证**：YAML 解析通过（version 1.8.0）；`py_compile` 三脚本通过；`validate_minutes.py --selftest` **4 项全 PASS**；`golden_cases.py` **3 用例全 PASS**（原单例 / soft-commitment / no-actions）；端到端出稿链 md→docx→fix_minutes_docx→validate（带 `--json`）全通，docx 路径修复前 4 FAIL、修复后 0 FAIL、状态 `complete`、`processing_warnings` 空。
+
+**回滚点**：`~/.zcode/skills/meeting-notes-expert/backups/pre-summary-generic-20261022-221006/`（v1.7.0 前）+ 上游 git 工作树。
+
+## 2026-10-22 · v1.7.0
+
+**动因**（用户指令）：把技能定位从「会议纪要」放宽为「通用总结」，让讲座、访谈、播客、课程等同类材料也能复用同一套提炼结构，会议场景仍出标准会议纪要。
+
+**变更**（描述层泛化，模板结构不动）：
+1. **front-matter 泛化**：`description` 扩到会议记录、讲座、访谈、播客、课程、笔记等材料，补英文摘要与通用触发分支；`metadata.trigger` 改为「整理会议记录与音视频转写为结构化总结」；`role` 改为「内容总结专家（会议纪要）」；`version` 升至 1.7.0。
+2. **标题与开篇定位**：标题改为「内容总结专家（Meeting Notes Expert）」，开篇说明会议场景出会议纪要、其他场景输出通用总结。
+3. **触发时机扩容**：新增讲座、访谈、播客、课程等材料的总结提炼触发。
+4. **新增「通用场景适配」节**：给出七节结构在非会议材料下的章节与字段映射表（会议基本信息→内容基本信息、会议结论→核心结论、关键决策→关键要点、待办事项→行动事项、会议内容→内容详情等），并明确通用总结交付名为 `总结-<主题或日期>.docx`。
+5. **交付文件名条款**：区分会议场景与通用场景两种命名。
+6. **初始化话术**：改为面向会议与音视频材料的通用表述。
+7. **references/minutes-schema.json**：标题与描述注明按会议版章节名、通用总结不强制。
+8. **scripts/validate_minutes.py**：docstring 与 argparse 描述同步为「结构化总结结构校验（会议版章节名）」。
+
+**未改动**：七节输出模板、待办六列表格、校验器 `REQUIRED` 章节名与全部断言、出稿链与三层验证——会议纪要行为保持 v1.6.0 原样。
+
+**验证**：YAML front-matter 解析通过（version 1.7.0）；`py_compile` 两个脚本通过；`validate_minutes.py --selftest` 通过；字面断言确认「会议纪要」仅剩会议语境用法。
+
+**回滚点**：`~/.zcode/skills/meeting-notes-expert/backups/pre-summary-generic-20261022-221006/`（SKILL.md + CHANGELOG.md）。
+
 ## 2026-10-13 · v1.6.0
 
 **动因**（用户指令）：用户对现行五章节纪要方式不满意；经《会议纪要方式调研-20261013.md》六路调研后裁决——**采纳**「决策与行动前置、结论先行（BLUF）、重要会议会前叙事文档、多版本出稿、行动系统化（上期回顾+任务清单贴群）」五项方式；**移除**三类元素：决策的状态与依据标注、「待确认」类信息标注、待办表的「验收标准」列。
